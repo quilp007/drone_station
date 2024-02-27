@@ -29,6 +29,7 @@ RIGHT_LIMIT     = 0x19f4
 HIGH_LIMIT      = 0x2000
 
 NO_OF_SERVO = 3
+NO_OF_DOOR_SERVO = NO_OF_SERVO
 
 SAVED_SERVO_POSITION = [0 for i in range(16)]     # save current servo position
 
@@ -65,20 +66,28 @@ SERVO_2_C = LEFT_LIMIT
 SERVO_2_D = RIGHT_LIMIT
 SERVO_2_E = LEFT_LIMIT
 
+SERVO_DOOR_A = LEFT_LIMIT
+SERVO_DOOR_B = RIGHT_LIMIT 
 
-POSITION_MATRIX = [
-#interval       # SERVO 0               # SERVO 1               # SERVO 2
-    [2000,   [SERVO_0_A, SERVO_0_B], [SERVO_1_A, SERVO_1_B], [SERVO_2_A, SERVO_2_B]],   # A -> B position 
-    [2000,   [SERVO_0_B, SERVO_0_C], [SERVO_1_B, SERVO_1_C], [SERVO_2_B, SERVO_2_C]],   # B -> C position
-    [2000,   [SERVO_0_C, SERVO_0_D], [SERVO_1_C, SERVO_1_D], [SERVO_2_C, SERVO_2_D]],   # C -> D position
-    [2000,   [SERVO_0_D, SERVO_0_E], [SERVO_1_D, SERVO_1_E], [SERVO_2_D, SERVO_2_E]]    # D -> E position
+DOOR_POSITION_MATRIX = [
+#interval       # DOOR SERVO            
+    3000,   [SERVO_DOOR_A, SERVO_DOOR_B]
+]
+
+ARM_POSITION_MATRIX = [
+#interval     # SERVO 0               # SERVO 1               # SERVO 2
+    [2000, [SERVO_0_A, SERVO_0_B], [SERVO_1_A, SERVO_1_B], [SERVO_2_A, SERVO_2_B]],  # A -> B position 
+    [2000, [SERVO_0_B, SERVO_0_C], [SERVO_1_B, SERVO_1_C], [SERVO_2_B, SERVO_2_C]],  # B -> C position
+    [2000, [SERVO_0_C, SERVO_0_D], [SERVO_1_C, SERVO_1_D], [SERVO_2_C, SERVO_2_D]],  # C -> D position
+    [2000, [SERVO_0_D, SERVO_0_E], [SERVO_1_D, SERVO_1_E], [SERVO_2_D, SERVO_2_E]]   # D -> E position
 ]
 
 servo = [0 for i in range(16)]
 # servo NO.            PCA channel  => PLEASE CHECK CONNECTION!!!
 servo[0] = pca.channels[0]
 servo[1] = pca.channels[15]
-servo[2] = pca.channels[2]
+servo[2] = pca.channels[3]
+servo[3] = pca.channels[2] # door servo
 
 def set_one_servo(no_servo, position):
     servo[no_servo].duty_cycle = position
@@ -88,20 +97,21 @@ def set_one_servo(no_servo, position):
 set_one_servo(0, SERVO_0_A)
 set_one_servo(1, SERVO_1_A)
 set_one_servo(2, SERVO_2_A)
+set_one_servo(3, SERVO_DOOR_A)
 time.sleep(1) 
 
 def arm_ctrl(wayPoint, direction):
-    interval = POSITION_MATRIX[wayPoint][INTERVAL_IDX]  # interval: xx ms
+    interval = ARM_POSITION_MATRIX[wayPoint][INTERVAL_IDX]  # interval: xx ms
     step = int(interval/ONE_CLOCK_PERIOD)               # 20: 50Hz -> 20ms
 
     for i in range(NO_OF_SERVO):
         SERVO_NO = i + 1
         if direction == OPEN:
-            servo_start   = POSITION_MATRIX[wayPoint][SERVO_NO][START_IDX]
-            servo_end     = POSITION_MATRIX[wayPoint][SERVO_NO][END_IDX]
+            servo_start   = ARM_POSITION_MATRIX[wayPoint][SERVO_NO][START_IDX]
+            servo_end     = ARM_POSITION_MATRIX[wayPoint][SERVO_NO][END_IDX]
         else:
-            servo_start   = POSITION_MATRIX[wayPoint][SERVO_NO][END_IDX]
-            servo_end     = POSITION_MATRIX[wayPoint][SERVO_NO][START_IDX]
+            servo_start   = ARM_POSITION_MATRIX[wayPoint][SERVO_NO][END_IDX]
+            servo_end     = ARM_POSITION_MATRIX[wayPoint][SERVO_NO][START_IDX]
 
         # ons_step_angle (value) if + -> low to high, if - -> high to low
         one_step_value = int((servo_end - servo_start)/step)
@@ -109,7 +119,8 @@ def arm_ctrl(wayPoint, direction):
         SERVO_POSITION_INFO[i] = [one_step_value, [servo_start, servo_end]]
 
         # check servo position
-        if servo_start != SAVED_SERVO_POSITION[i]: print("servo {} position error!!!!!!!!!!!!!!!!".format(i))
+        if servo_start != SAVED_SERVO_POSITION[i]:
+            print("servo {} position error!!!!!!!!!!!!!!!!".format(i))
 
         # move start position 
         set_one_servo(i, servo_start)
@@ -130,23 +141,60 @@ def arm_ctrl(wayPoint, direction):
             time.sleep(0.02) 
 
 
-def door_ctrl(flag):
-    if flag == CLOSE:
-        print("door CLOSE!!")
-    elif flag == OPEN:
+def door_ctrl(direction):
+    if direction == OPEN:
         print("door OPEN!!")
+    elif direction  == CLOSE:
+        print("door CLOSE!!")
     else:
         print("ERROR!!")
+        return
+
+    interval = DOOR_POSITION_MATRIX[INTERVAL_IDX]  # interval: xx ms
+    step = int(interval/ONE_CLOCK_PERIOD)               # 20: 50Hz -> 20ms
+
+    if direction == OPEN:
+        servo_start   = DOOR_POSITION_MATRIX[1][START_IDX]
+        servo_end     = DOOR_POSITION_MATRIX[1][END_IDX]
+    else:
+        servo_start   = DOOR_POSITION_MATRIX[1][END_IDX]
+        servo_end     = DOOR_POSITION_MATRIX[1][START_IDX]
+
+    one_step_value = int((servo_end - servo_start)/step)
+
+    # check servo position
+    if servo_start != SAVED_SERVO_POSITION[NO_OF_DOOR_SERVO]:
+        print("servo {} position error!!!!!!!!!!!!!!!!".format(NO_OF_DOOR_SERVO))
+
+    # move start position 
+    set_one_servo(NO_OF_DOOR_SERVO, servo_start)
+
+    for i in range(step + OVER_STEP): # +2 fragmentation of one_step_angle from float to int 
+        position = SAVED_SERVO_POSITION[NO_OF_DOOR_SERVO] + one_step_value
+
+        if (position > servo_end and one_step_value > 0) or \
+           (position < servo_end and one_step_value < 0 ): 
+            position = servo_end
+
+        set_one_servo(NO_OF_DOOR_SERVO, position)
+        time.sleep(0.02) 
+
+
+def arm_out():
+    for i in range(4):
+        arm_ctrl(i, OPEN)
+
+def arm_in():
+    for i in range(3, -1, -1):
+        arm_ctrl(i, CLOSE)
 
 
 def main():
     door_ctrl(OPEN)
-    for i in range(4):
-        arm_ctrl(i, OPEN)
+    arm_out()
 
+    arm_in()
     door_ctrl(CLOSE)
-    for i in range(3, -1, -1):
-        arm_ctrl(i, CLOSE)
 
 
 if __name__ == "__main__":

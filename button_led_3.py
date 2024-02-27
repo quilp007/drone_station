@@ -9,13 +9,11 @@ import threading
 from threading import Thread
 import pca9685_simpletest_m2 as servo
 
-OPEN_BUTTON_GPIO     = 16
-CLOSE_BUTTON_GPIO     = 26
+OPEN_BUTTON_GPIO    = 16
+CLOSE_BUTTON_GPIO   = 26
 
-GREEN_LED_GPIO  = 20
-RED_LED_GPIO    = 21
-
-last_LED_state  = 0
+GREEN_LED_GPIO      = 20
+RED_LED_GPIO        = 21
 
 GREEN_LED_STATE         = 0
 GREEN_LED_STOP_TIMER    = 0
@@ -29,11 +27,8 @@ LED_OFF = 0
 CLOSE = False
 OPEN  = True
 
-timer_count = 0
-COUNTER = 3     # led blingking time
-
-OPEN_STATUS = False
-CLOSE_STATUS = False
+open_state = False
+close_state = False
 
 def led_on_off(led_num, on_off):
     global GREEN_LED_STATE
@@ -59,8 +54,8 @@ class THREAD_BUTTON(Thread):
         self.__exit = False
 
     def run(self):
-        global OPEN_STATUS
-        global CLOSE_STATUS
+        global open_state
+        global close_state
         while True:
             ### Suspend ###
             with self.pause_cond:
@@ -69,9 +64,9 @@ class THREAD_BUTTON(Thread):
                     #time.sleep(0.5)
                     self.pause_cond.wait()
 
-            if CLOSE_STATUS:
+            if close_state:
                 self.close_process()
-            elif OPEN_STATUS:
+            elif open_state:
                 self.open_process()
 
             ### Exit ###
@@ -81,7 +76,7 @@ class THREAD_BUTTON(Thread):
     def open_process(self):
         global RED_LED_STOP_TIMER
         global RED_LED_STATE
-        global OPEN_STATUS
+        global open_state
 
         print("open starting!!")
         print("red led on for 3s!!")
@@ -94,7 +89,7 @@ class THREAD_BUTTON(Thread):
 
         print("[[door openning!!]]")
         servo.door_ctrl(OPEN)
-        time.sleep(3)
+        # time.sleep(3)
 
         print("[[drone out!!]]")
         for i in range(4):
@@ -105,7 +100,7 @@ class THREAD_BUTTON(Thread):
         time.sleep(0.5)
 
         led_on_off(RED_LED_GPIO, LED_ON)
-        OPEN_STATUS = False
+        open_state = False
 
         self.mySuspend()
 
@@ -113,7 +108,7 @@ class THREAD_BUTTON(Thread):
         global GREEN_LED_STOP_TIMER
         global RED_LED_STOP_TIMER
         global GREEN_LED_STATE
-        global CLOSE_STATUS
+        global close_state
         print("close starting!!")
         print("red led on for 3s!!")
 
@@ -130,7 +125,7 @@ class THREAD_BUTTON(Thread):
 
         print("[[door close!!]]")
         servo.door_ctrl(CLOSE)
-        time.sleep(3)
+        # time.sleep(3)
 
         led_on_off(GREEN_LED_GPIO, LED_ON)
         time.sleep(10)
@@ -141,7 +136,7 @@ class THREAD_BUTTON(Thread):
         led_on_off(GREEN_LED_GPIO, LED_OFF)
         led_on_off(RED_LED_GPIO, LED_OFF)
 
-        CLOSE_STATUS = False
+        close_state = False
 
         self.mySuspend()
 
@@ -161,19 +156,14 @@ class THREAD_BUTTON(Thread):
     def close(self):
         self.mySuspend()
 
+# ----------------------
+thread = THREAD_BUTTON()
+# ----------------------
+
 def signal_handler(sig, frame):
     GPIO.cleanup()
     sys.exit(0)
 
-def button_callback(channel):
-    global RED_LED_STATE
-    global GREEN_LED_STATE
-    if channel == OPEN_BUTTON_GPIO:
-        RED_LED_STATE = not RED_LED_STATE 
-        led_on_off(RED_LED_GPIO, RED_LED_STATE)
-    else:
-        GREEN_LED_STATE = not GREEN_LED_STATE 
-        GPIO.output(GREEN_LED_GPIO, GREEN_LED_STATE)
 
 def red_led_blinking():
     global RED_LED_STATE
@@ -183,6 +173,7 @@ def red_led_blinking():
     if not RED_LED_STOP_TIMER:
         threading.Timer(0.5, red_led_blinking).start()
 
+
 def green_led_blinking():
     global GREEN_LED_STATE
     GREEN_LED_STATE = not GREEN_LED_STATE 
@@ -190,6 +181,8 @@ def green_led_blinking():
     if not GREEN_LED_STOP_TIMER:
         threading.Timer(0.5, green_led_blinking).start()
 
+
+# Off all leds(green, red), timer stop
 def led_all_off():
     global RED_LED_STOP_TIMER
     global GREEN_LED_STOP_TIMER
@@ -202,36 +195,21 @@ def led_all_off():
     led_on_off(GREEN_LED_GPIO, LED_OFF)
 
 
-def led_blinking():
-    global last_LED_state
-    global timer_count
-    last_LED_state = not last_LED_state
-    GPIO.output(GREEN_LED_GPIO, last_LED_state)
-    if(timer_count < 5):
-        threading.Timer(1, led_blinking).start()
-
-    timer_count += 1
-
-# --------------
-thread = THREAD_BUTTON()
-# --------------
-# --------------
-
 def button_pressed_callback(channel):
-    global OPEN_STATUS
-    global CLOSE_STATUS
+    global open_state
+    global close_state
 
-    if (channel == OPEN_BUTTON_GPIO) and (not OPEN_STATUS):
-        OPEN_STATUS = True
+    if open_state:
+        print("OPEN is running!!")
+    elif close_state:
+        print("CLOSE is running!!")
+    elif (channel == OPEN_BUTTON_GPIO) and (not open_state):
+        open_state = True
         thread.myResume()
-    elif (channel == CLOSE_BUTTON_GPIO) and (not CLOSE_STATUS):
-        CLOSE_STATUS = True
+    elif (channel == CLOSE_BUTTON_GPIO) and (not close_state):
+        close_state = True
         thread.myResume()
         # print("CLOSE BUTTON PRESSED!!")
-    elif not OPEN_STATUS:
-        print("OPEN is running!!")
-    elif not CLOSE_STATUS:
-        print("CLOSE is running!!")
 
 
 if __name__ == '__main__':
@@ -242,21 +220,13 @@ if __name__ == '__main__':
     GPIO.setup(GREEN_LED_GPIO, GPIO.OUT)   
     GPIO.setup(RED_LED_GPIO, GPIO.OUT)   
 
-    # GPIO.add_event_detect(OPEN_BUTTON_GPIO, GPIO.FALLING, callback=button_callback, bouncetime=200)
-    # GPIO.add_event_detect(CLOSE_BUTTON_GPIO, GPIO.FALLING, callback=button_callback, bouncetime=200)
-
     GPIO.add_event_detect(OPEN_BUTTON_GPIO, GPIO.FALLING, callback=button_pressed_callback, bouncetime=200)
     GPIO.add_event_detect(CLOSE_BUTTON_GPIO, GPIO.FALLING, callback=button_pressed_callback, bouncetime=200)
-
-    timer_count = 0
-    # timer = threading.Timer(1, led_blinking)
-    # timer.start()
 
     led_all_off()
 
     thread.mySuspend()
     thread.start()
-    # thread.myResume() 
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.pause()
