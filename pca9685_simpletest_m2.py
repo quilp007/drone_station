@@ -10,6 +10,7 @@ pca = PCA9685(i2c_bus)
 # Set the PWM frequency to 60hz. -----------------------------
 pca.frequency = 50      # 19.73ms
 ONE_CLOCK_PERIOD = 1000/pca.frequency   # ms (1/pca.frequency)
+ONE_DELAY = float(1/pca.frequency)
 # ------------------------------------------------------------
 
 # Set the PWM duty cycle for channel zero to 50%. duty_cycle is 16 bits to match other PWM objects
@@ -39,7 +40,7 @@ END_IDX = 1
 ONE_STEP_IDX = 0
 SERVO_POSITION_IDX = 1
 
-OVER_STEP = 7   # meet target position (for fragmentation float -> int)
+OVER_STEP = 10   # meet target position (for fragmentation float -> int)
 
 # temp. varialble
 SERVO_POSITION_INFO = [0 for i in range(NO_OF_SERVO)]
@@ -48,15 +49,15 @@ CLOSE = 0
 OPEN  = 1
 
 # A <-> B <-> C <-> D <-> E
-SERVO_0_A = LOW_LIMIT
-SERVO_0_B = LEFT_LIMIT
-SERVO_0_C = MID_POSITION
+SERVO_0_A = LEFT_LIMIT
+SERVO_0_B = MID_POSITION
+SERVO_0_C = RIGHT_LIMIT
 SERVO_0_D = RIGHT_LIMIT
 SERVO_0_E = HIGH_LIMIT
 
-SERVO_1_A = LEFT_LIMIT
-SERVO_1_B = RIGHT_LIMIT
-SERVO_1_C = LEFT_LIMIT
+SERVO_1_A = MID_POSITION - 100
+SERVO_1_B = MID_POSITION
+SERVO_1_C = MID_POSITION + 100
 SERVO_1_D = RIGHT_LIMIT
 SERVO_1_E = LEFT_LIMIT
 
@@ -87,9 +88,9 @@ NO_OF_POSITION = len(ARM_POSITION_MATRIX)
 servo = [0 for i in range(16)]
 # servo NO.            PCA channel  => PLEASE CHECK CONNECTION!!!
 servo[0] = pca.channels[0]
-servo[1] = pca.channels[15]
-servo[2] = pca.channels[3]
-servo[3] = pca.channels[2] # door servo
+servo[1] = pca.channels[1]
+servo[2] = pca.channels[2]
+servo[3] = pca.channels[3] # door servo
 
 def set_one_servo(no_servo, position):
     servo[no_servo].duty_cycle = position
@@ -140,7 +141,8 @@ def arm_ctrl(wayPoint, direction):
                 position = servo_end
 
             set_one_servo(SERVO_NO, position)
-            time.sleep(0.02) 
+            # time.sleep(0.02) 
+            time.sleep(ONE_DELAY) 
 
 
 def door_ctrl(direction):

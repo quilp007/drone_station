@@ -2,7 +2,17 @@
                                 
 import signal                   
 import sys
-import RPi.GPIO as GPIO
+
+RPI5 = True
+
+if RPI5:
+    from gpiozero import Button
+    from gpiozero import LED
+
+    green_led = LED(20)
+    red_led   = LED(21)
+else:
+    import RPi.GPIO as GPIO
 
 import time
 import threading
@@ -78,7 +88,7 @@ class THREAD_BUTTON(Thread):
 
         print("[[door openning!!]]")
         servo.door_ctrl(OPEN)
-        # time.sleep(3)
+        time.sleep(1)
 
         print("[[drone out!!]]")
         servo.arm_out()
@@ -107,15 +117,10 @@ class THREAD_BUTTON(Thread):
 
         print("[[door close!!]]")
         servo.door_ctrl(CLOSE)
-        # time.sleep(3)
-
-        #self.servo_ctrl_obj.led_on_off(GREEN_LED_GPIO, LED_ON)
-        # time.sleep(10)
 
         self.servo_ctrl_obj.red_led_stop_timer = True
         time.sleep(0.5)
 
-        self.servo_ctrl_obj.led_on_off(GREEN_LED_GPIO, LED_OFF)
         self.servo_ctrl_obj.led_on_off(RED_LED_GPIO, LED_OFF)
 
         self.servo_ctrl_obj.running_state = False
@@ -167,7 +172,15 @@ class SERVO_CTRL:
         if led_num == GREEN_LED_GPIO: self.green_led_state = on_off
         elif led_num == RED_LED_GPIO: self.red_led_state = on_off
 
-        GPIO.output(led_num, on_off)
+        if RPI5:
+            if led_num == GREEN_LED_GPIO:
+                if on_off: green_led.on()
+                else: green_led.off()
+            elif led_num == RED_LED_GPIO:
+                if on_off: red_led.on()
+                else: red_led.off()
+        else:
+            GPIO.output(led_num, on_off)
 
 
     def red_led_blinking(self):
@@ -195,12 +208,14 @@ class SERVO_CTRL:
 
 
     def button_pressed_callback(self, channel):
-        if channel == MODE_BUTTON_GPIO and self.mode_state == AUTO_MODE:
+        if channel.pin.number == MODE_BUTTON_GPIO and self.mode_state == AUTO_MODE:
             print(">> MANUAL MODE")
             self.mode_state = MANUAL_MODE
-        elif channel == MODE_BUTTON_GPIO and self.mode_state == MANUAL_MODE:
+            green_led.off()
+        elif channel.pin.number == MODE_BUTTON_GPIO and self.mode_state == MANUAL_MODE:
             print(">> AUTO MODE")
             self.mode_state = AUTO_MODE
+            green_led.on()
             if not self.running_state:
                 self.running_state = True
                 self.thread.myResume()
@@ -209,35 +224,46 @@ class SERVO_CTRL:
                 print(">> OPEN is running!!")
             else:
                 print(">> CLOSE is running!!")
-        elif (channel == OPEN_BUTTON_GPIO) and (not self.running_state) and (self.current_state != OPEN):
+        elif (channel.pin.number == OPEN_BUTTON_GPIO) and (not self.running_state) and (self.current_state != OPEN):
             self.running_state = True
             self.current_state = OPEN
             self.thread.myResume()
-        elif (channel == CLOSE_BUTTON_GPIO) and (not self.running_state) and (self.current_state != CLOSE):
+        elif (channel.pin.number == CLOSE_BUTTON_GPIO) and (not self.running_state) and (self.current_state != CLOSE):
             self.running_state = True
             self.current_state = CLOSE
             self.thread.myResume()
 
 
 def signal_handler(sig, frame):
-    GPIO.cleanup()
+    if not RPI5:
+        GPIO.cleanup()
     sys.exit(0)
 
 
 if __name__ == '__main__':
-    GPIO.setmode(GPIO.BCM)
-    
-    GPIO.setup(OPEN_BUTTON_GPIO,    GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    GPIO.setup(CLOSE_BUTTON_GPIO,   GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    GPIO.setup(MODE_BUTTON_GPIO,    GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    GPIO.setup(GREEN_LED_GPIO,      GPIO.OUT)   
-    GPIO.setup(RED_LED_GPIO,        GPIO.OUT)   
+    if RPI5:
+        btn16 = Button(16, pull_up=True, bounce_time=0.2)
+        btn26 = Button(26, pull_up=True, bounce_time=0.2)
+        btn19 = Button(19, pull_up=True, bounce_time=0.2)
+
+    else:
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(OPEN_BUTTON_GPIO,    GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(CLOSE_BUTTON_GPIO,   GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(MODE_BUTTON_GPIO,    GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(GREEN_LED_GPIO,      GPIO.OUT)   
+        GPIO.setup(RED_LED_GPIO,        GPIO.OUT)   
 
     servo_controller = SERVO_CTRL()
 
-    GPIO.add_event_detect(OPEN_BUTTON_GPIO,  GPIO.FALLING, callback = servo_controller.button_pressed_callback, bouncetime=200)
-    GPIO.add_event_detect(CLOSE_BUTTON_GPIO, GPIO.FALLING, callback = servo_controller.button_pressed_callback, bouncetime=200)
-    GPIO.add_event_detect(MODE_BUTTON_GPIO,  GPIO.FALLING, callback = servo_controller.button_pressed_callback, bouncetime=200)
+    if RPI5:
+        btn16.when_pressed = servo_controller.button_pressed_callback
+        btn26.when_pressed = servo_controller.button_pressed_callback
+        btn19.when_pressed = servo_controller.button_pressed_callback
+    else:
+        GPIO.add_event_detect(OPEN_BUTTON_GPIO,  GPIO.FALLING, callback = servo_controller.button_pressed_callback, bouncetime=200)
+        GPIO.add_event_detect(CLOSE_BUTTON_GPIO, GPIO.FALLING, callback = servo_controller.button_pressed_callback, bouncetime=200)
+        GPIO.add_event_detect(MODE_BUTTON_GPIO,  GPIO.FALLING, callback = servo_controller.button_pressed_callback, bouncetime=200)
 
     servo_controller.led_all_off()
 
