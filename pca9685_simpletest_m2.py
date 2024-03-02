@@ -39,7 +39,7 @@ END_IDX = 1
 ONE_STEP_IDX = 0
 SERVO_POSITION_IDX = 1
 
-OVER_STEP = 5   # meet target position (for fragmentation float -> int)
+OVER_STEP = 7   # meet target position (for fragmentation float -> int)
 
 # temp. varialble
 SERVO_POSITION_INFO = [0 for i in range(NO_OF_SERVO)]
@@ -78,9 +78,11 @@ ARM_POSITION_MATRIX = [
 #interval     # SERVO 0               # SERVO 1               # SERVO 2
     [2000, [SERVO_0_A, SERVO_0_B], [SERVO_1_A, SERVO_1_B], [SERVO_2_A, SERVO_2_B]],  # A -> B position 
     [2000, [SERVO_0_B, SERVO_0_C], [SERVO_1_B, SERVO_1_C], [SERVO_2_B, SERVO_2_C]],  # B -> C position
-    [2000, [SERVO_0_C, SERVO_0_D], [SERVO_1_C, SERVO_1_D], [SERVO_2_C, SERVO_2_D]],  # C -> D position
-    [2000, [SERVO_0_D, SERVO_0_E], [SERVO_1_D, SERVO_1_E], [SERVO_2_D, SERVO_2_E]]   # D -> E position
+    # [2000, [SERVO_0_C, SERVO_0_D], [SERVO_1_C, SERVO_1_D], [SERVO_2_C, SERVO_2_D]],  # C -> D position
+    # [2000, [SERVO_0_D, SERVO_0_E], [SERVO_1_D, SERVO_1_E], [SERVO_2_D, SERVO_2_E]]   # D -> E position
 ]
+
+NO_OF_POSITION = len(ARM_POSITION_MATRIX)
 
 servo = [0 for i in range(16)]
 # servo NO.            PCA channel  => PLEASE CHECK CONNECTION!!!
@@ -181,11 +183,11 @@ def door_ctrl(direction):
 
 
 def arm_out():
-    for i in range(4):
+    for i in range(NO_OF_POSITION):
         arm_ctrl(i, OPEN)
 
 def arm_in():
-    for i in range(3, -1, -1):
+    for i in range(NO_OF_POSITION - 1, -1, -1):
         arm_ctrl(i, CLOSE)
 
 
